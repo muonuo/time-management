@@ -129,7 +129,7 @@ const AddTimerModal: React.FC<AddTimerModalProps> = ({ isOpen, onClose, onAdd })
                 placeholder="例如：阅读、写代码、冥想..."
                 value={formData.title}
                 onChange={handleInputChange}
-                className="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                className="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-gray-900 placeholder-gray-400 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
                 autoFocus
                 />
               </div>
@@ -169,7 +169,7 @@ const AddTimerModal: React.FC<AddTimerModalProps> = ({ isOpen, onClose, onAdd })
                       min="0"
                       value={formData.hours}
                       onChange={handleInputChange}
-                      className="w-full text-center px-2 py-3 rounded-xl bg-gray-50 border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none text-lg font-mono"
+                      className="w-full text-center px-2 py-3 rounded-xl bg-gray-50 border border-gray-200 text-gray-900 focus:ring-2 focus:ring-blue-500 outline-none text-lg font-mono"
                     />
                     <span className="absolute right-2 bottom-3 text-xs text-gray-400">时</span>
                   </div>
@@ -181,7 +181,7 @@ const AddTimerModal: React.FC<AddTimerModalProps> = ({ isOpen, onClose, onAdd })
                       max="59"
                       value={formData.minutes}
                       onChange={handleInputChange}
-                      className="w-full text-center px-2 py-3 rounded-xl bg-gray-50 border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none text-lg font-mono"
+                      className="w-full text-center px-2 py-3 rounded-xl bg-gray-50 border border-gray-200 text-gray-900 focus:ring-2 focus:ring-blue-500 outline-none text-lg font-mono"
                     />
                      <span className="absolute right-2 bottom-3 text-xs text-gray-400">分</span>
                   </div>
@@ -193,7 +193,7 @@ const AddTimerModal: React.FC<AddTimerModalProps> = ({ isOpen, onClose, onAdd })
                       max="59"
                       value={formData.seconds}
                       onChange={handleInputChange}
-                      className="w-full text-center px-2 py-3 rounded-xl bg-gray-50 border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none text-lg font-mono"
+                      className="w-full text-center px-2 py-3 rounded-xl bg-gray-50 border border-gray-200 text-gray-900 focus:ring-2 focus:ring-blue-500 outline-none text-lg font-mono"
                     />
                      <span className="absolute right-2 bottom-3 text-xs text-gray-400">秒</span>
                   </div>
@@ -252,7 +252,7 @@ const AddTimerModal: React.FC<AddTimerModalProps> = ({ isOpen, onClose, onAdd })
                      value={aiInput}
                      onChange={(e) => setAiInput(e.target.value)}
                      placeholder="输入你的需求..."
-                     className="w-full h-32 p-4 rounded-xl bg-gray-50 border border-gray-200 focus:bg-white focus:ring-2 focus:ring-violet-500 focus:border-transparent outline-none resize-none mb-4 transition-colors"
+                     className="w-full h-32 p-4 rounded-xl bg-gray-50 border border-gray-200 text-gray-900 placeholder-gray-400 focus:bg-white focus:ring-2 focus:ring-violet-500 focus:border-transparent outline-none resize-none mb-4 transition-colors"
                      autoFocus
                   />
                   <button
