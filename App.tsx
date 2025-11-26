@@ -6,6 +6,7 @@ import AddTimerModal from './components/AddTimerModal';
 import LoginModal from './components/LoginModal';
 import { Timer, TimerFormData, TimerStatus, TimerType, COLORS, MOOD_OPTIONS, User } from './types';
 import { chatWithGemini } from './services/geminiService';
+import { storage } from './services/storage';
 
 // Helper to get consistent UUIDs
 const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -31,10 +32,9 @@ const MoodIcon = ({ iconName, size = 16 }: { iconName: string, size?: number }) 
 };
 
 function App() {
-  const [timers, setTimers] = useState<Timer[]>(() => {
-    const saved = localStorage.getItem('timeflow-timers');
-    return saved ? JSON.parse(saved) : [];
-  });
+  // Initialize state from Storage Service
+  const [timers, setTimers] = useState<Timer[]>(() => storage.getTimers());
+  const [currentUser, setCurrentUser] = useState<User | null>(() => storage.getUser());
   
   const [activeTab, setActiveTab] = useState<'dashboard' | 'tasks' | 'ai'>('dashboard');
   const [permission, setPermission] = useState(Notification.permission);
@@ -43,7 +43,6 @@ function App() {
   // Modal States
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
 
   // Chat State
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([
@@ -56,10 +55,16 @@ function App() {
   // Ref to track interval
   const intervalRef = useRef<number | null>(null);
 
-  // Persist timers
+  // Persistence Effects:
+  // Whenever timers change, save to storage
   useEffect(() => {
-    localStorage.setItem('timeflow-timers', JSON.stringify(timers));
+    storage.saveTimers(timers);
   }, [timers]);
+
+  // Whenever user changes, save to storage
+  useEffect(() => {
+    storage.saveUser(currentUser);
+  }, [currentUser]);
 
   // Scroll to bottom of chat
   useEffect(() => {
@@ -305,10 +310,11 @@ function App() {
              {currentUser ? (
                 <button 
                     onClick={() => setCurrentUser(null)}
-                    className="flex items-center gap-2 px-2 py-1 rounded-full hover:bg-white/50 transition-colors"
+                    className="flex items-center gap-2 px-2 py-1 rounded-full hover:bg-white/50 transition-colors group"
                 >
                     <img src={currentUser.avatar} alt="User" className="w-8 h-8 rounded-full border border-white shadow-sm" />
-                    <span className="text-sm font-medium text-gray-700 hidden md:inline">{currentUser.username}</span>
+                    <span className="text-sm font-medium text-gray-700 hidden md:inline group-hover:hidden">{currentUser.username}</span>
+                    <span className="text-sm font-medium text-red-500 hidden group-hover:inline"><LogOut size={16} className="inline mr-1"/>退出</span>
                 </button>
              ) : (
                 <button 
@@ -471,6 +477,7 @@ function App() {
                                                             {timer.status === TimerStatus.RUNNING && <span className="text-emerald-600 flex items-center gap-1"><span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"/> 进行中</span>}
                                                             {timer.status === TimerStatus.PAUSED && <span className="text-amber-600">已暂停</span>}
                                                             {timer.status === TimerStatus.COMPLETED && <span className="text-gray-400 line-through">已完成</span>}
+                                                            {timer.status === TimerStatus.IDLE && <span className="text-gray-400">未开始</span>}
                                                         </div>
                                                     </div>
                                                 </div>
