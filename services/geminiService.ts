@@ -1,5 +1,5 @@
 
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Type, Chat, GenerateContentResponse } from "@google/genai";
 
 // Initialize Gemini Client
 // Note: API Key must be in process.env.API_KEY
@@ -12,7 +12,7 @@ export interface SmartTimerResponse {
   suggestedColorIndex: number; // 0-7 corresponding to our COLORS array
 }
 
-// Existing function for smart timer creation (kept for reference or future use)
+// Existing function for smart timer creation
 export const analyzeTimerRequest = async (userInput: string): Promise<SmartTimerResponse | null> => {
   if (!apiKey) {
     console.warn("API Key not found. Smart features disabled.");
@@ -61,23 +61,36 @@ export const analyzeTimerRequest = async (userInput: string): Promise<SmartTimer
   }
 };
 
-// New function for General Chat
-export const chatWithGemini = async (history: {role: string, parts: {text: string}[]}[], message: string): Promise<string> => {
-  if (!apiKey) return "请先配置 API Key。";
+// New function for Streaming Chat
+export async function* chatWithGeminiStream(
+  history: {role: string, parts: {text: string}[]}[],
+  message: string
+): AsyncGenerator<string, void, unknown> {
+  if (!apiKey) {
+      yield "请先配置 API Key。";
+      return;
+  }
 
   try {
-    const chat = ai.chats.create({
+    const chat: Chat = ai.chats.create({
       model: 'gemini-2.5-flash',
       config: {
-        systemInstruction: '你是一个乐于助人、知识渊博的AI生活助手。请用简洁、亲切的中文回答用户的问题。如果是关于时间管理的问题，可以多给一些建议。',
+        systemInstruction: '你是一个乐于助人、知识渊博的AI生活助手。请用简洁、亲切的中文回答用户的问题。对于复杂问题，请先进行深思熟虑。',
+        thinkingConfig: { thinkingBudget: 1024 } // Enable thinking process
       },
       history: history
     });
 
-    const response = await chat.sendMessage({ message });
-    return response.text || "抱歉，我没有听清。";
+    const result = await chat.sendMessageStream({ message });
+
+    for await (const chunk of result) {
+        const c = chunk as GenerateContentResponse;
+        if (c.text) {
+            yield c.text;
+        }
+    }
   } catch (error) {
     console.error("Chat Error:", error);
-    return "网络连接似乎有点问题，请稍后再试。";
+    yield "网络连接似乎有点问题，请稍后再试。";
   }
 }

@@ -5,7 +5,7 @@ import TimerCard from './components/TimerCard';
 import AddTimerModal from './components/AddTimerModal';
 import LoginModal from './components/LoginModal';
 import { Timer, TimerFormData, TimerStatus, TimerType, COLORS, MOOD_OPTIONS, User } from './types';
-import { chatWithGemini } from './services/geminiService';
+import { chatWithGeminiStream } from './services/geminiService';
 import { storage } from './services/storage';
 
 // Helper to get consistent UUIDs
@@ -49,8 +49,13 @@ function App() {
     { role: 'model', text: '你好！我是你的 AI 助手。无论是生活琐事、时间管理建议，还是单纯想聊聊天，我都在这里。今天有什么可以帮你的吗？' }
   ]);
   const [chatInput, setChatInput] = useState('');
-  const [isChatLoading, setIsChatLoading] = useState(false);
+  const [isChatLoading, setIsChatLoading] = useState(false); // Thinking state
+  const [isTyping, setIsTyping] = useState(false); // Typing effect state
   const chatEndRef = useRef<HTMLDivElement>(null);
+  
+  // Typewriter Refs
+  const streamingQueue = useRef<string[]>([]);
+  const isProcessingQueue = useRef(false);
 
   // Ref to track interval
   const intervalRef = useRef<number | null>(null);
@@ -69,7 +74,7 @@ function App() {
   // Scroll to bottom of chat
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [chatHistory, activeTab]);
+  }, [chatHistory, activeTab, isChatLoading, isTyping]);
 
   // Request notification permission
   const requestNotificationPermission = async () => {
@@ -217,26 +222,100 @@ function App() {
       setBgImage(bgs[nextIdx]);
   }
 
+  // Typewriter effect processor
+  const processQueue = useCallback(() => {
+    if (streamingQueue.current.length === 0) {
+        isProcessingQueue.current = false;
+        setIsTyping(false);
+        return;
+    }
+
+    isProcessingQueue.current = true;
+    setIsTyping(true);
+
+    const char = streamingQueue.current.shift();
+
+    if (char) {
+        setChatHistory(prev => {
+            const newHistory = [...prev];
+            const lastIdx = newHistory.length - 1;
+            // Ensure we are appending to the last model message
+            if (lastIdx >= 0 && newHistory[lastIdx].role === 'model') {
+                newHistory[lastIdx] = {
+                    ...newHistory[lastIdx],
+                    text: newHistory[lastIdx].text + char
+                };
+            }
+            return newHistory;
+        });
+    }
+
+    // Dynamic delay for natural typing feel
+    let delay = 30; // Base typing speed (ms)
+    // Add pause for punctuation
+    if (char === '，' || char === ',') delay = 150;
+    if (['。', '.', '!', '?', '！', '？', ':', '：', '\n'].includes(char || '')) delay = 300;
+
+    setTimeout(processQueue, delay);
+  }, []);
+
   // Chat Handler
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!chatInput.trim() || isChatLoading) return;
+    // Prevent sending if empty, thinking, or still typing the previous message
+    if (!chatInput.trim() || isChatLoading || isTyping) return;
 
     const userMsg = chatInput;
     setChatInput('');
+    // Add user message to history
     setChatHistory(prev => [...prev, { role: 'user', text: userMsg }]);
+    
+    // Set loading (Thinking state)
     setIsChatLoading(true);
 
-    // Convert history format for API
+    // Convert history format for API (exclude current interaction for now, or include? Gemini handles context)
+    // We need to exclude the placeholder model message we are about to add
     const apiHistory = chatHistory.map(msg => ({
         role: msg.role,
         parts: [{ text: msg.text }]
     }));
 
-    const responseText = await chatWithGemini(apiHistory, userMsg);
+    try {
+        let isFirstChunk = true;
 
-    setChatHistory(prev => [...prev, { role: 'model', text: responseText }]);
-    setIsChatLoading(false);
+        // Add a placeholder message for the model
+        setChatHistory(prev => [...prev, { role: 'model', text: '' }]);
+
+        // Stream the response
+        for await (const chunk of chatWithGeminiStream(apiHistory, userMsg)) {
+            if (isFirstChunk) {
+                // First chunk received: Stop thinking animation
+                setIsChatLoading(false);
+                isFirstChunk = false;
+            }
+            
+            // Add characters to the queue
+            // Array.from splits strings correctly for emojis/unicode
+            const chars = Array.from(chunk);
+            streamingQueue.current.push(...chars);
+
+            // Start the typewriter loop if it's not running
+            if (!isProcessingQueue.current) {
+                processQueue();
+            }
+        }
+    } catch (e) {
+        console.error("Chat error", e);
+        setIsChatLoading(false);
+        setChatHistory(prev => {
+             const newHist = [...prev];
+             // If failed, show error in the last message
+             if (newHist[newHist.length - 1].role === 'model' && newHist[newHist.length - 1].text === '') {
+                 newHist[newHist.length - 1].text = "抱歉，网络似乎开了小差，请稍后再试。";
+             }
+             return newHist;
+        });
+    }
   };
 
   return (
@@ -407,7 +486,7 @@ function App() {
             </div>
         )}
 
-        {/* TASKS / LIST VIEW (Cleaned up) */}
+        {/* TASKS / LIST VIEW */}
         {activeTab === 'tasks' && (
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
                 <div className="bg-white/85 backdrop-blur-xl rounded-2xl shadow-xl overflow-hidden border border-white/50 min-h-[500px] flex flex-col">
@@ -535,18 +614,17 @@ function App() {
                             <div className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm ${
                                 msg.role === 'user' 
                                 ? 'bg-blue-600 text-white rounded-tr-none' 
-                                : 'bg-white text-gray-800 border border-gray-100 rounded-tl-none'
+                                : 'bg-white text-gray-800 border border-gray-100 rounded-tl-none whitespace-pre-wrap'
                             }`}>
                                 {msg.text}
                             </div>
                         </div>
                     ))}
                     {isChatLoading && (
-                        <div className="flex justify-start">
-                            <div className="bg-white text-gray-500 border border-gray-100 rounded-2xl rounded-tl-none px-4 py-3 text-sm shadow-sm flex items-center gap-2">
-                                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
-                                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-75" />
-                                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-150" />
+                        <div className="flex justify-start animate-in fade-in duration-300">
+                            <div className="bg-gradient-to-r from-violet-50 to-fuchsia-50 border border-violet-100 rounded-2xl rounded-tl-none px-4 py-3 text-sm shadow-sm flex items-center gap-3">
+                                <Brain size={16} className="text-violet-500 animate-pulse" />
+                                <span className="text-violet-700 font-medium text-xs">AI 正在深度思考...</span>
                             </div>
                         </div>
                     )}
@@ -561,11 +639,12 @@ function App() {
                             value={chatInput}
                             onChange={(e) => setChatInput(e.target.value)}
                             placeholder="问点什么... (例如: 怎么提高专注力?)"
-                            className="flex-1 px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-gray-900 focus:bg-white focus:ring-2 focus:ring-violet-500 outline-none transition-all"
+                            disabled={isChatLoading || isTyping}
+                            className="flex-1 px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-gray-900 focus:bg-white focus:ring-2 focus:ring-violet-500 outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                         />
                         <button
                             type="submit"
-                            disabled={!chatInput.trim() || isChatLoading}
+                            disabled={!chatInput.trim() || isChatLoading || isTyping}
                             className="p-3 bg-violet-600 text-white rounded-xl hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-md"
                         >
                             <Send size={20} />
